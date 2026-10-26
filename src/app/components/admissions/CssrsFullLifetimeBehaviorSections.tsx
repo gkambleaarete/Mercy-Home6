@@ -4,7 +4,8 @@ import { FieldError, FieldLabel } from "../ui/field";
 import { Input } from "../ui/input";
 import {
   ACTUAL_ATTEMPT_DEFINITION,
-  ACTUAL_ATTEMPT_PROMPTS,
+  ACTUAL_ATTEMPT_PRIMARY_ID,
+  ACTUAL_ATTEMPT_QUESTIONS,
   ACTUAL_LETHALITY_OPTIONS,
   actualLethalityText,
   ATTEMPT_GROUPS,
@@ -14,10 +15,14 @@ import {
   BEHAVIOR_PERIODS,
   BEHAVIOR_QUESTIONS,
   behaviorErrorKey,
+  followUpErrorKey,
+  getActualAttemptAnswer,
+  getActualAttemptDescription,
   getBehaviorAnswer,
   getBehaviorCount,
   getBehaviorDescription,
   isAttemptDetailsApplicable,
+  lacksActualAttemptQuestions,
   parseCountText,
   POTENTIAL_LETHALITY_HELP,
   POTENTIAL_LETHALITY_OPTIONS,
@@ -26,10 +31,14 @@ import {
   setBehaviorAnswer,
   setBehaviorCount,
   setBehaviorDescription,
+  setFollowUpAnswer,
+  setFollowUpDescription,
+  type ActualAttemptQuestionId,
   type BehaviorErrors,
   type BehaviorPeriod,
 } from "../../data/cssrsFullLifetimeBehavior";
 import type {
+  ActualAttemptFollowUpId,
   AttemptKey,
   BehaviorKey,
   FullLifetimeResponses,
@@ -122,6 +131,190 @@ function CountField({
   );
 }
 
+/** Control id base for one Actual Attempt question and period. Question 1
+ *  keeps the Actual Attempt response's own id. */
+export const actualAttemptQuestionId = (
+  idPrefix: string,
+  id: ActualAttemptQuestionId,
+  period: BehaviorPeriod,
+) =>
+  id === ACTUAL_ATTEMPT_PRIMARY_ID
+    ? behaviorId(idPrefix, "actualAttempt", period)
+    : `${idPrefix}-behavior-actualAttempt-${id}-${period}`;
+
+/** The nine Actual Attempt questions (each Yes/No + description per
+ *  period) followed by the one pair of totals. Question 1 is the explicit
+ *  Actual Attempt response; the totals depend only on it. */
+function ActualAttemptQuestions({
+  idPrefix,
+  responses,
+  onChange,
+  errors,
+  disabled,
+}: {
+  idPrefix: string;
+  responses: FullLifetimeResponses;
+  onChange: (next: FullLifetimeResponses) => void;
+  errors: BehaviorErrors;
+  disabled?: boolean;
+}) {
+  const questionId = `${idPrefix}-behavior-actualAttempt-question`;
+  const countLabel = "Total Number of Attempts";
+  return (
+    <li>
+      <p id={questionId} className="text-[13px] font-semibold" style={text}>
+        Actual Attempt
+      </p>
+      <div className="mt-1 space-y-2">
+        {ACTUAL_ATTEMPT_DEFINITION.map((para, i) => (
+          <QuestionHelp
+            key={i}
+            id={`${idPrefix}-behavior-actualAttempt-definition-${i}`}
+          >
+            {para}
+          </QuestionHelp>
+        ))}
+      </div>
+      <ol className="mt-4 space-y-6 list-decimal pl-5">
+        {ACTUAL_ATTEMPT_QUESTIONS.map((aq) => {
+          const qId = `${idPrefix}-behavior-actualAttempt-${aq.id}-question`;
+          const primary = aq.id === ACTUAL_ATTEMPT_PRIMARY_ID;
+          return (
+            <li key={aq.id}>
+              <p id={qId} className="text-[13px]" style={text}>
+                {aq.text}
+              </p>
+              <div className={`${PERIOD_GRID} mt-3`}>
+                {BEHAVIOR_PERIODS.map((period) => {
+                  const base = actualAttemptQuestionId(
+                    idPrefix,
+                    aq.id,
+                    period,
+                  );
+                  const labelId = `${base}-label`;
+                  const answer = getActualAttemptAnswer(
+                    responses,
+                    aq.id,
+                    period,
+                  );
+                  const error =
+                    errors[
+                      primary
+                        ? behaviorErrorKey("actualAttempt", period)
+                        : followUpErrorKey(
+                            aq.id as ActualAttemptFollowUpId,
+                            period,
+                          )
+                    ];
+                  const errorId = `${base}-error`;
+                  return (
+                    <div key={period} className="space-y-3">
+                      <PeriodLabel id={labelId}>
+                        {BEHAVIOR_PERIOD_LABEL[period]}
+                      </PeriodLabel>
+                      <YesNoRadios
+                        idPrefix={base}
+                        labelledBy={`${qId} ${labelId}`}
+                        describedBy={error ? errorId : undefined}
+                        invalid={!!error}
+                        value={answer}
+                        onChange={(v) =>
+                          onChange(
+                            primary
+                              ? setBehaviorAnswer(
+                                  responses,
+                                  "actualAttempt",
+                                  period,
+                                  v,
+                                )
+                              : setFollowUpAnswer(
+                                  responses,
+                                  aq.id as ActualAttemptFollowUpId,
+                                  period,
+                                  v,
+                                ),
+                          )
+                        }
+                        disabled={disabled}
+                      />
+                      <FieldError id={errorId}>{error}</FieldError>
+                      {answer === "yes" && (
+                        <DescriptionField
+                          id={`${base}-description`}
+                          label="If Yes, Describe"
+                          ariaLabel={`If Yes, Describe — ${aq.text} ${BEHAVIOR_PERIOD_LABEL[period]}`}
+                          value={getActualAttemptDescription(
+                            responses,
+                            aq.id,
+                            period,
+                          )}
+                          onChange={(v) =>
+                            onChange(
+                              primary
+                                ? setBehaviorDescription(
+                                    responses,
+                                    "actualAttempt",
+                                    period,
+                                    v,
+                                  )
+                                : setFollowUpDescription(
+                                    responses,
+                                    aq.id as ActualAttemptFollowUpId,
+                                    period,
+                                    v,
+                                  ),
+                            )
+                          }
+                          disabled={disabled}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="mt-6">
+        <p className="text-[13px] font-semibold" style={text}>
+          {countLabel}
+        </p>
+        <QuestionHelp id={`${idPrefix}-behavior-actualAttempt-totals-help`}>
+          Based on the response to Question 1 for each period: enter a whole
+          number when it is Yes (No counts as 0).
+        </QuestionHelp>
+        <div className={`${PERIOD_GRID} mt-3`}>
+          {BEHAVIOR_PERIODS.map((period) => {
+            const base = behaviorId(idPrefix, "actualAttempt", period);
+            return (
+              <CountField
+                key={period}
+                id={`${base}-count`}
+                label={`${countLabel}: ${BEHAVIOR_PERIOD_LABEL[period]}`}
+                value={getBehaviorCount(responses, "actualAttempt", period)}
+                onChange={(n) =>
+                  onChange(
+                    setBehaviorCount(responses, "actualAttempt", period, n),
+                  )
+                }
+                error={
+                  errors[behaviorErrorKey("actualAttempt", period, "count")]
+                }
+                disabled={
+                  disabled ||
+                  getBehaviorAnswer(responses, "actualAttempt", period) !==
+                    "yes"
+                }
+              />
+            );
+          })}
+        </div>
+      </div>
+    </li>
+  );
+}
+
 // ─── Section 3: editing ─────────────────────────────────────────────────────
 
 export function FullLifetimeBehaviorSection({
@@ -154,6 +347,17 @@ export function FullLifetimeBehaviorSection({
       </QuestionHelp>
       <ol className="space-y-6">
         {BEHAVIOR_QUESTIONS.map((q) => {
+          if (q.key === "actualAttempt")
+            return (
+              <ActualAttemptQuestions
+                key={q.key}
+                idPrefix={idPrefix}
+                responses={responses}
+                onChange={onChange}
+                errors={errors}
+                disabled={disabled}
+              />
+            );
           const questionId = `${idPrefix}-behavior-${q.key}-question`;
           const helpId = `${idPrefix}-behavior-${q.key}-help`;
           return (
@@ -165,32 +369,6 @@ export function FullLifetimeBehaviorSection({
               >
                 {q.title}
               </p>
-              {q.key === "actualAttempt" && (
-                <div className="mt-1 space-y-2">
-                  {ACTUAL_ATTEMPT_DEFINITION.map((para, i) => (
-                    <QuestionHelp
-                      key={i}
-                      id={`${idPrefix}-behavior-actualAttempt-definition-${i}`}
-                    >
-                      {para}
-                    </QuestionHelp>
-                  ))}
-                  <p
-                    className="slds-form-label mt-2"
-                    style={{ color: "var(--slds-g-color-text-weak)" }}
-                  >
-                    Interview prompts
-                  </p>
-                  <ul
-                    className="list-disc pl-5 text-[12px] space-y-0.5"
-                    style={{ color: "var(--slds-g-color-text-weak)" }}
-                  >
-                    {ACTUAL_ATTEMPT_PROMPTS.map((pr) => (
-                      <li key={pr}>{pr}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
               {q.help && <QuestionHelp id={helpId}>{q.help}</QuestionHelp>}
               <p className="mt-4 text-[13px]" style={text}>
                 {q.text}
@@ -394,6 +572,94 @@ export function FullLifetimeAttemptDetailsSection({
   );
 }
 
+function ActualAttemptDetails({
+  responses,
+}: {
+  responses: FullLifetimeResponses;
+}) {
+  const legacy = lacksActualAttemptQuestions(responses);
+  return (
+    <li data-question="actualAttempt">
+      <p className="text-[13px] font-semibold" style={text}>
+        Actual Attempt
+      </p>
+      <div className="mt-1 space-y-2">
+        {ACTUAL_ATTEMPT_DEFINITION.map((para, i) => (
+          <QuestionHelp
+            key={i}
+            id={`cssrs-fl-details-behavior-actualAttempt-definition-${i}`}
+          >
+            {para}
+          </QuestionHelp>
+        ))}
+      </div>
+      <ol className="mt-4 space-y-5 list-decimal pl-5">
+        {ACTUAL_ATTEMPT_QUESTIONS.map((aq) => {
+          const missing = legacy && aq.id !== ACTUAL_ATTEMPT_PRIMARY_ID;
+          return (
+            <li key={aq.id} data-actual-attempt-question={aq.id}>
+              <p className="text-[13px]" style={text}>
+                {aq.text}
+              </p>
+              <dl className={`${PERIOD_GRID} mt-3`}>
+                {BEHAVIOR_PERIODS.map((period) => {
+                  const answer = getActualAttemptAnswer(
+                    responses,
+                    aq.id,
+                    period,
+                  );
+                  return (
+                    <div
+                      key={period}
+                      className="space-y-3"
+                      data-period={period}
+                    >
+                      <ReadOnlyResponse
+                        label={BEHAVIOR_PERIOD_LABEL[period]}
+                        value={
+                          missing
+                            ? "Not captured in this assessment"
+                            : YES_NO_LABEL[answer]
+                        }
+                      />
+                      {!missing && answer === "yes" && (
+                        <ReadOnlyResponse
+                          label="If Yes, Describe"
+                          value={
+                            getActualAttemptDescription(
+                              responses,
+                              aq.id,
+                              period,
+                            ) || "Not provided"
+                          }
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </dl>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="mt-5" data-actual-attempt-totals>
+        <p className="text-[13px] font-semibold" style={text}>
+          Total Number of Attempts
+        </p>
+        <dl className={`${PERIOD_GRID} mt-3`}>
+          {BEHAVIOR_PERIODS.map((period) => (
+            <ReadOnlyResponse
+              key={period}
+              label={`Total Number of Attempts: ${BEHAVIOR_PERIOD_LABEL[period]}`}
+              value={getBehaviorCount(responses, "actualAttempt", period)}
+            />
+          ))}
+        </dl>
+      </div>
+    </li>
+  );
+}
+
 // ─── Sections 3–4: read-only ────────────────────────────────────────────────
 
 export function FullLifetimeBehaviorAttemptDetails({
@@ -411,7 +677,10 @@ export function FullLifetimeBehaviorAttemptDetails({
           {BEHAVIOR_GUIDANCE}
         </QuestionHelp>
         <ol className="space-y-5">
-          {BEHAVIOR_QUESTIONS.map((q) => (
+          {BEHAVIOR_QUESTIONS.map((q) =>
+            q.key === "actualAttempt" ? (
+              <ActualAttemptDetails key={q.key} responses={responses} />
+            ) : (
             <li key={q.key} data-question={q.key}>
               <p className="text-[13px] font-semibold" style={text}>
                 {q.title}
@@ -457,7 +726,8 @@ export function FullLifetimeBehaviorAttemptDetails({
                 })}
               </dl>
             </li>
-          ))}
+            ),
+          )}
         </ol>
       </section>
 

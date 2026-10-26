@@ -317,6 +317,7 @@ export interface FFReferenceRequestRecord {
 /** Post-submission training certificates (VMS Upload Certificates). */
 export type FFCertificateKey =
   "virtus" | "dcfs" | "fingerprint" | "cpi";
+// (fingerprint receipts stay stored; they are no longer an active document)
 
 /** The applicant's submitted application — the single source for answers. */
 export interface FFMentorApplication {
@@ -330,6 +331,12 @@ export interface FFMentorApplication {
   applicantStatus: FFApplicantFacingStatus;
   startedAt: string;
   submittedAt: string;
+  /**
+   * When the applicant's VMS account was created (YYYY-MM-DD or
+   * MM/DD/YYYY). Optional: no source supplies it yet, so it stays absent
+   * rather than being guessed from start/submission/constituent dates.
+   */
+  accountCreatedAt?: string;
   answers: FFMentorApplicationAnswers;
   references: FFApplicationReference[];
   /** Wizard document uploads by key (e.g. driversLicence). */
@@ -339,9 +346,10 @@ export interface FFMentorApplication {
 
 // ─── Staff side ─────────────────────────────────────────────────────────────
 
-/** Mentor Application pipeline (US 20039), in order. These are the stages
- *  an application moves through; Rejected is an alternative outcome, not a
- *  step after Active. */
+/** Mentor Application pipeline (US 20039): exactly the eight stages shown on
+ *  the record and offered in the staff stage dropdown, in order. Rejected is
+ *  always visible at position 7 but is an alternative outcome to Ready for
+ *  Match, never a prerequisite of it. */
 export const FF_MENTOR_PIPELINE_STAGES = [
   "Info Session",
   "Application",
@@ -349,28 +357,77 @@ export const FF_MENTOR_PIPELINE_STAGES = [
   "Profile",
   "Post-Interview Requirements",
   "Determination",
+  "Rejected",
   "Ready for Match",
+] as const;
+
+/** The alternative outcome (position 7 of the pipeline). */
+export const FF_MENTOR_REJECTED_STAGE = "Rejected" as const;
+
+/** Every stage staff can select (and that can be newly saved), in order. */
+export const FF_MENTOR_SELECTABLE_STAGES =
+  FF_MENTOR_PIPELINE_STAGES;
+
+/** Values older records may still carry. Readable, never offered, never
+ *  migrated or converted. */
+export const FF_MENTOR_LEGACY_STAGES = [
   "Matched",
   "Active",
 ] as const;
 
-/** The alternative outcome staff can also select. */
-export const FF_MENTOR_REJECTED_STAGE = "Rejected" as const;
-
-/** Every stage staff can select (and that can be saved), in dropdown order. */
-export const FF_MENTOR_SELECTABLE_STAGES = [
-  ...FF_MENTOR_PIPELINE_STAGES,
-  FF_MENTOR_REJECTED_STAGE,
+/** Every persisted stage value the app recognises when reading. */
+export const FF_MENTOR_RECOGNISED_STAGES = [
+  ...FF_MENTOR_SELECTABLE_STAGES,
+  ...FF_MENTOR_LEGACY_STAGES,
 ] as const;
 export type FFMentorPipelineStage =
-  (typeof FF_MENTOR_SELECTABLE_STAGES)[number];
+  (typeof FF_MENTOR_RECOGNISED_STAGES)[number];
 
+/** A stored value this app can read (selectable or legacy). */
 export function isFFMentorPipelineStage(
   v: unknown,
 ): v is FFMentorPipelineStage {
   return (
+    FF_MENTOR_RECOGNISED_STAGES as readonly unknown[]
+  ).includes(v);
+}
+
+export type FFMentorSelectableStage =
+  (typeof FF_MENTOR_SELECTABLE_STAGES)[number];
+
+/** A stage staff may choose now (excludes the legacy values). */
+export function isFFMentorSelectableStage(
+  v: unknown,
+): v is FFMentorSelectableStage {
+  return (
     FF_MENTOR_SELECTABLE_STAGES as readonly unknown[]
   ).includes(v);
+}
+
+const ACCOUNT_DATE_ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ACCOUNT_DATE_MDY = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+
+/**
+ * The applicant account's creation date as MM/DD/YYYY, or "" when it isn't
+ * recorded (or isn't a real calendar date). Calendar text only — no Date
+ * parsing, so no timezone shift. Never falls back to another date.
+ */
+export function ffAccountCreatedDate(
+  app: Pick<FFMentorApplication, "accountCreatedAt"> | undefined,
+): string {
+  const v = app?.accountCreatedAt?.trim();
+  if (!v) return "";
+  const iso = ACCOUNT_DATE_ISO.exec(v);
+  const mdy = ACCOUNT_DATE_MDY.exec(v);
+  const [y, m, d] = iso
+    ? [+iso[1], +iso[2], +iso[3]]
+    : mdy
+      ? [+mdy[3], +mdy[1], +mdy[2]]
+      : [0, 0, 0];
+  if (!y || m < 1 || m > 12 || d < 1) return "";
+  if (d > new Date(Date.UTC(y, m, 0)).getUTCDate()) return "";
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  return `${pad(m)}/${pad(d)}/${pad(y, 4)}`;
 }
 
 /** Applicant-facing status labels, as VMS My Applications shows them. */

@@ -34,59 +34,93 @@ const ids = (a: FFMentorApplication) =>
     .filter((r) => r.required)
     .map((r) => r.id);
 const COMMON = [
-  "backgroundConsent",
   "finalAttestation",
+  "backgroundConsent",
   "clientConfidentiality",
-  "codeOfEthics",
-  "publicityRelease",
   "mentorRights",
   "mandatedReporter",
 ];
 
 describe("applicable agreements", () => {
-  it("CB only", () => {
-    expect(ids(make(["community"]))).toEqual([
+  it("CB only: 8 rows", () => {
+    const list = ids(make(["community"]));
+    expect(list).toEqual([
       ...COMMON,
       "publicTransit",
       "psychScreening",
-      "accurateBiometrics",
-      "fingerprintConsentCB",
       "mentorDescriptionCB",
     ]);
+    expect(list).toHaveLength(8);
   });
-  it("SB only", () => {
-    expect(ids(make(["school"]))).toEqual([
-      ...COMMON,
-      "accurateBiometrics",
-      "fingerprintConsentSB",
-      "mentorDescriptionSB",
-    ]);
+  it("SB only: 6 rows", () => {
+    const list = ids(make(["school"]));
+    expect(list).toEqual([...COMMON, "mentorDescriptionSB"]);
+    expect(list).toHaveLength(6);
   });
-  it("WB only", () => {
-    expect(ids(make(["work"]))).toEqual([
-      ...COMMON,
-      "mentorDescriptionWB",
-    ]);
+  it("WB only: 6 rows", () => {
+    const list = ids(make(["work"]));
+    expect(list).toEqual([...COMMON, "mentorDescriptionWB"]);
+    expect(list).toHaveLength(6);
   });
-  it("all three: every distinct variant once, common ones not duplicated", () => {
+  it("all three: 10 distinct rows, common ones not duplicated", () => {
     const list = ids(make(["community", "school", "work"]));
     expect(list).toEqual([
       ...COMMON,
       "publicTransit",
       "psychScreening",
-      "accurateBiometrics",
-      "fingerprintConsentCB",
-      "fingerprintConsentSB",
       "mentorDescriptionCB",
       "mentorDescriptionSB",
       "mentorDescriptionWB",
     ]);
     expect(new Set(list).size).toBe(list.length);
-    const bio = ffAgreementRows(
+    expect(list).toHaveLength(10);
+  });
+  it("uses the current names", () => {
+    const names = ffAgreementRows(
       make(["community", "school", "work"]),
       staff,
-    ).find((r) => r.id === "accurateBiometrics")!;
-    expect(bio.appliesTo).toEqual(["community", "school"]);
+    ).map((r) => r.name);
+    expect(names).toEqual([
+      "Final Attestation",
+      "Mentor Consent to Background & Driving Check",
+      "Mentor's Agreement to Uphold Client Confidentiality",
+      "Mentor Rights & Grievances",
+      "Acknowledgement for Mandated Reporter Status",
+      "Mentor's Public Transit Agreement",
+      "Waiver for Psychological Screening Feedback",
+      "Mentor Description Form (CB)",
+      "Mentor Description Form (SB)",
+      "Mentor Description Form (WB)",
+    ]);
+  });
+  it("retired saved keys never reappear as rows or requirements", () => {
+    const rows = ffAgreementRows(
+      make(
+        ["community", "school"],
+        {
+          agreements: {
+            codeOfEthics: "October 1, 2026 at 9:00:00 AM",
+            publicityRelease: "October 1, 2026 at 9:00:00 AM",
+            fingerprintConsentCB: "October 1, 2026 at 9:00:00 AM",
+            fingerprintConsentSB: "October 1, 2026 at 9:00:00 AM",
+            accurateBiometrics: "October 1, 2026 at 9:00:00 AM",
+          },
+        },
+        { codeOfEthics: true },
+      ),
+      staff,
+    );
+    expect(rows.map((r) => r.id)).not.toEqual(
+      expect.arrayContaining(["codeOfEthics"]),
+    );
+    for (const k of [
+      "codeOfEthics",
+      "publicityRelease",
+      "fingerprintConsentCB",
+      "fingerprintConsentSB",
+      "accurateBiometrics",
+    ])
+      expect(rows.some((r) => r.id === k)).toBe(false);
   });
 });
 
@@ -95,7 +129,7 @@ describe("signature status", () => {
     const rows = ffAgreementRows(
       make(["community", "school"], {
         agreements: {
-          fingerprintConsentCB:
+          publicTransit:
             "October 1, 2026 at 10:00:00 AM",
           mentorDescriptionCB: "October 1, 2026 at 10:01:00 AM",
         },
@@ -104,12 +138,8 @@ describe("signature status", () => {
     );
     const st = (id: string) =>
       rows.find((r) => r.id === id)!.status;
-    expect(st("fingerprintConsentCB")).toBe(
-      "Signed and Agreed",
-    );
-    expect(st("fingerprintConsentSB")).toBe(
-      "Signature Required",
-    );
+    expect(st("publicTransit")).toBe("Signed and Agreed");
+    expect(st("mentorDescriptionCB")).toBe("Signed and Agreed");
     expect(st("mentorDescriptionSB")).toBe(
       "Signature Required",
     );
@@ -173,11 +203,11 @@ describe("signature status", () => {
         {
           backgroundSig: { signedAs: "A", signedAt: "" },
           agreements: {
-            codeOfEthics: "October 1, 2026 at 9:00:00 AM",
+            mentorRights: "October 1, 2026 at 9:00:00 AM",
             publicTransit: "",
           },
         },
-        { codeOfEthics: false, clientConfidentiality: true },
+        { mentorRights: false, clientConfidentiality: true },
       ),
       staff,
     );
@@ -185,7 +215,7 @@ describe("signature status", () => {
     expect(st("backgroundConsent")).toMatchObject({
       status: "Unverified",
     });
-    expect(st("codeOfEthics")).toMatchObject({
+    expect(st("mentorRights")).toMatchObject({
       status: "Unverified",
       issue: "The saved signing records conflict.",
     });
@@ -193,7 +223,7 @@ describe("signature status", () => {
     expect(st("clientConfidentiality").issue).toContain(
       "no signing date/time",
     );
-    expect(st("mentorRights").status).toBe(
+    expect(st("mandatedReporter").status).toBe(
       "Signature Required",
     );
     const noConsent = make(["work"]);
@@ -212,7 +242,7 @@ describe("signature status", () => {
     const s = {
       ...staff,
       documentReviews: {
-        codeOfEthics: {
+        mentorRights: {
           status: "approved" as const,
           reviewedBy: "Reviewer R",
           reviewedAt: "10/10/2026",
@@ -226,20 +256,20 @@ describe("signature status", () => {
           signedAt: "09/01/2026 9:00 AM",
         },
         agreements: {
-          codeOfEthics: "September 1, 2026 at 9:01:00 AM",
+          mentorRights: "September 1, 2026 at 9:01:00 AM",
         },
       }),
       s,
     );
     expect(
-      rows.find((r) => r.id === "codeOfEthics")!.review
+      rows.find((r) => r.id === "mentorRights")!.review
         ?.reviewedBy,
     ).toBe("Reviewer R");
     expect(
       rows.find((r) => r.id === "backgroundConsent")!.review,
     ).toBeUndefined();
   });
-  it("additional saved agreements are listed separately and never substitute a required form", () => {
+  it("earlier or unknown saved agreement keys are not listed and never substitute a required form", () => {
     const rows = ffAgreementRows(
       make(
         ["community"],
@@ -256,11 +286,21 @@ describe("signature status", () => {
     expect(
       rows.find((r) => r.id === "publicTransit")!.status,
     ).toBe("Signature Required");
-    const extra = rows.filter((r) => !r.required);
-    expect(extra.map((r) => [r.id, r.status])).toEqual([
-      ["publicTransitAgreement", "Signed and Agreed"],
-      ["cbMentorAgreement", "Unverified"],
-    ]);
+    expect(rows.every((r) => r.required)).toBe(true);
+    expect(rows.map((r) => r.id)).not.toContain("publicTransitAgreement");
+    expect(rows.map((r) => r.id)).not.toContain("cbMentorAgreement");
+  });
+  it("seeded VMS records show only their current applicable rows", () => {
+    const counts: Record<string, number> = { "VMS-5101": 9, "VMS-5102": 6 };
+    for (const app of SEED_FF_MENTOR_APPLICATIONS) {
+      if (!(app.applicationId in counts)) continue;
+      const before = JSON.stringify(app.answers.consent);
+      const rows = ffAgreementRows(app, staff);
+      expect(rows).toHaveLength(counts[app.applicationId]);
+      expect(rows.every((r) => r.required)).toBe(true);
+      // The saved evidence itself is untouched.
+      expect(JSON.stringify(app.answers.consent)).toBe(before);
+    }
   });
   it("invalid or unrecognizable timestamps are Unverified; valid formats are accepted", () => {
     const rows = ffAgreementRows(
@@ -274,11 +314,11 @@ describe("signature status", () => {
           signedAt: "02/30/2026 9:00 AM",
         },
         agreements: {
-          codeOfEthics: "September 31, 2026 at 9:00:00 AM",
+          mandatedReporter: "September 31, 2026 at 9:00:00 AM",
           clientConfidentiality:
             "September 30, 2026 at 9:58:01 AM",
           mentorRights: "2026-09-30T14:05:00.000Z",
-          publicityRelease: "13/01/2026",
+          mentorDescriptionWB: "13/01/2026",
         },
       }),
       staff,
@@ -289,8 +329,8 @@ describe("signature status", () => {
       signedAt: "sometime last week",
     });
     expect(st("finalAttestation").status).toBe("Unverified");
-    expect(st("codeOfEthics").status).toBe("Unverified");
-    expect(st("publicityRelease").status).toBe("Unverified");
+    expect(st("mandatedReporter").status).toBe("Unverified");
+    expect(st("mentorDescriptionWB").status).toBe("Unverified");
     expect(st("clientConfidentiality").status).toBe(
       "Signed and Agreed",
     );
@@ -311,11 +351,11 @@ describe("signature status", () => {
       }),
       staff,
     );
-    expect(a.applicable).toHaveLength(8);
+    expect(a.applicable).toHaveLength(6);
     expect(a.signed).toEqual(["backgroundConsent"]);
     expect(a.unverified.map((u) => u.id)).toEqual([
       "finalAttestation",
     ]);
-    expect(a.missing).toHaveLength(6);
+    expect(a.missing).toHaveLength(4);
   });
 });

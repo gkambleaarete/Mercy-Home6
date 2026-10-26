@@ -65,3 +65,18 @@ The Standardized Test dialog (DLG-01) already uses `sm:max-w-4xl`, the same widt
 
 ## Long-option dropdowns
 `SelectContent` has an opt-in `wrapOptions` prop (shared `ui/select.tsx`): the popup is exactly as wide as its trigger, stays inside the viewport with a collision margin (flipping above the field when needed), is height-limited with its own vertical scroll, and options wrap. Default Select consumers are unchanged. The Full-Lifetime rating, lethality and type-number dropdowns use it with `SelectTrigger valueOverflow="wrap"`. Regression: `browser-checks/cssrs-dropdown-regression.mjs`.
+
+## Chunk 5A — persisted Risk Factors and requirement visibility (US 20139)
+This increment connects saved Admissions Risk Factors to a visible Full-Lifetime requirement. **US 20139 is not complete**: mandatory enforcement and the completion policy are unresolved (below).
+
+- **Source:** `src/app/data/riskFactorStore.ts` is the one saved source for Risk Factors (no earlier store existed; `RiskFactorsSection` previously held universal sample rows in component state). Browser `localStorage` key `mh.admissionsRiskFactors.v1`, schema version 1, all-or-nothing writes, corrupt/unsupported data left untouched and writes refused (`getUnreadableRiskFactorData()`). PROTOTYPE persistence only. The old sample rows were not migrated; with no saved records the normal empty state shows.
+- **Ownership:** each record keeps `admissionsRecordId` and `youthKey`, passed explicitly from `resolveCssrsOwnership`. Reads filter by Admissions record, so switching records never exposes another's Risk Factors; edit/delete require the owning record. With no Admissions record (a Constituent profile) the screen shows an explanation and reads/writes nothing; no default youth is ever used. `RiskFactorsSection` now takes an `owner` prop; `ClinicalAssessmentsView` passes it through.
+- **Rule:** `src/app/lib/cssrsRequirement.ts`. A saved Risk Factor of exactly "Suicidal Ideation" or "Self-Harm" (legacy exact alias "Self Harm") means Full-Lifetime is required. No substring or narrative matching. Result is one of `required` (with the matching factors), `none`, or `unavailable` (unreadable data or no Admissions record), which is never shown as "not needed". Recomputed from the store, so Add/Edit/Delete, refresh and record switching update it.
+- **UI:** `CssrsRequirementNotice.tsx` (shared `Alert`) appears under Risk & Legal > Risk Factors and at the top of Testing & Assessments, naming the matching factor(s). "Complete C-SSRS Full-Lifetime" opens the existing Add Standardized Test dialog with Full-Lifetime selected (same form, validation, save service and store; nothing is saved until Save, and an open draft is never replaced). When the record is not Active/Referral the action is replaced by the existing restriction text. The Testing panel also lists Full-Lifetime assessments owned by the current Admissions record with View/Edit; assessments owned by another record are not shown there. The general Testing list keeps its youth-based visibility. Version 1 Full-Lifetime records stay readable and keep the version 2 edit-upgrade.
+- **Not implemented (unresolved policy):** no "requirement satisfied" calculation; nothing is blocked and no status changes; no aggregate risk.
+
+### Decisions still needed
+1. Is past-year suicidal thoughts/attempts an additional trigger, or a condition on the Risk Factor trigger? (Not inferred from `lastOccurred`, descriptions or Screener answers; no AND/OR assumed.)
+2. What is the authoritative source of that history?
+3. Which Admissions action must be blocked, and when?
+4. Which saved assessment satisfies the requirement, how old may it be, and when is reassessment needed after a new Risk Factor?

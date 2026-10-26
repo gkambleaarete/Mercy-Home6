@@ -110,6 +110,11 @@ import {
 import { CaseyLifeSkillsCaregiverFields } from "./CaseyLifeSkillsCaregiverFields";
 import { CaseyLifeSkillsYouthFields } from "./CaseyLifeSkillsYouthFields";
 import { formatMdy } from "../../lib/dateFormat";
+import type { FullLifetimeRequirement } from "../../lib/cssrsRequirement";
+import {
+  CssrsRequirementNotice,
+  type OwnedFullLifetime,
+} from "./CssrsRequirementNotice";
 
 interface LeadDetailTestingTabProps {
   activeTab: any;
@@ -127,6 +132,14 @@ interface LeadDetailTestingTabProps {
   sortedTestingAssessments: any;
   testingSortColumn: any;
   testingSortDirection: any;
+  /** C-SSRS Full-Lifetime requirement from the saved Risk Factors. */
+  fullLifetimeRequirement: FullLifetimeRequirement;
+  /** Full-Lifetime assessments owned by THIS Admissions record. */
+  ownedFullLifetime: OwnedFullLifetime[];
+  onCompleteFullLifetime: () => void;
+  fullLifetimeUnavailableReason: string | null;
+  onViewCssrs: (id: string) => void;
+  onEditCssrs: (id: string) => void;
 }
 
 export function LeadDetailTestingTab({
@@ -145,11 +158,26 @@ export function LeadDetailTestingTab({
   sortedTestingAssessments,
   testingSortColumn,
   testingSortDirection,
+  fullLifetimeRequirement,
+  ownedFullLifetime,
+  onCompleteFullLifetime,
+  fullLifetimeUnavailableReason,
+  onViewCssrs,
+  onEditCssrs,
 }: LeadDetailTestingTabProps) {
   return (
     <>
       {activeTab === "testing" && (
         <div className="space-y-6 max-w-full">
+          <CssrsRequirementNotice
+            idPrefix="testing"
+            requirement={fullLifetimeRequirement}
+            onComplete={onCompleteFullLifetime}
+            unavailableReason={fullLifetimeUnavailableReason}
+            owned={ownedFullLifetime}
+            onView={onViewCssrs}
+            onEdit={onEditCssrs}
+          />
           <div
             className="overflow-hidden"
             style={{

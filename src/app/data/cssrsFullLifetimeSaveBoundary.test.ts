@@ -120,7 +120,7 @@ describe("persisted payload versions", () => {
     const made = saveCssrsFullLifetime({ editingId: null, ownership: owner, assessmentDate: "2026-03-01", responses: validFullLifetime() });
     if (!made.ok) throw new Error();
     const stored = JSON.parse(localStorage.getItem(CSSRS_STORAGE_KEY)!);
-    stored.records[0].responses.version = 2;
+    stored.records[0].responses.version = 3;
     const future = JSON.stringify(stored);
     localStorage.setItem(CSSRS_STORAGE_KEY, future);
     __reloadCssrsForTest();

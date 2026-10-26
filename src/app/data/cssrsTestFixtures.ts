@@ -10,8 +10,10 @@ import {
   setAttemptField,
   setBehaviorAnswer,
   setBehaviorCount,
+  setFollowUpAnswer,
 } from "./cssrsFullLifetimeBehavior";
 import {
+  ACTUAL_ATTEMPT_FOLLOW_UP_IDS,
   BEHAVIOR_KEYS,
   emptyFullLifetimeResponses,
   type FullLifetimeResponses,
@@ -31,6 +33,9 @@ export function validFullLifetime(): FullLifetimeResponses {
   for (const k of BEHAVIOR_KEYS)
     for (const p of ["lifetime", "past3Months"] as const)
       r = setBehaviorAnswer(r, k, p, "no");
+  for (const id of ACTUAL_ATTEMPT_FOLLOW_UP_IDS)
+    for (const p of ["lifetime", "past3Months"] as const)
+      r = setFollowUpAnswer(r, id, p, "no");
   r = setBehaviorAnswer(r, "actualAttempt", "lifetime", "yes");
   r = setBehaviorCount(r, "actualAttempt", "lifetime", 2);
   for (const g of ["mostRecent", "mostLethal", "initial"] as const)

@@ -18,11 +18,21 @@
 //    required only when that group's Actual Lethality is 0. The same event may
 //    fill several groups; nothing decides which attempt was most lethal.
 //  • Nothing is inferred from narrative text or from another response.
+//  • Actual Attempt asks nine questions. Question 1 is the explicit Actual
+//    Attempt response (behavior.actualAttempt) and alone drives Section 4 and
+//    the totals; Questions 2–9 are independent Yes/No + description pairs per
+//    period (actualAttemptQuestions), keyed by stable ids. A Yes count is
+//    never derived from how many questions were answered Yes.
+//  • "What did you do?" is asked as Yes/No like the other eight, as requested
+//    (BA clarification: its wording reads as a narrative prompt).
 
 import {
+  ACTUAL_ATTEMPT_FOLLOW_UP_IDS,
   ATTEMPT_KEYS,
   BEHAVIOR_KEYS,
   emptyAttemptDetails,
+  type ActualAttemptFollowUp,
+  type ActualAttemptFollowUpId,
   type AttemptKey,
   type BehaviorKey,
   type FullLifetimeResponses,
@@ -48,18 +58,45 @@ export const ACTUAL_ATTEMPT_DEFINITION = [
   "Inferring Intent: Even if an individual denies intent/wish to die, it may be inferred clinically from the behavior or circumstances. For example, a highly lethal act that is clearly not an accident so no other intent but suicide can be inferred (e.g., gunshot to head, jumping from window of a high floor/story). Also, if someone denies intent to die, but they thought that what they did could be lethal, intent may be inferred.",
 ];
 
-/** Interview prompts that support the staff decision. They are guidance
- *  only: there are no response fields for them. */
-export const ACTUAL_ATTEMPT_PROMPTS: readonly string[] = [
-  "Have you made a suicide attempt?",
-  "Have you done anything to harm yourself?",
-  "Have you done anything dangerous where you could have died?",
-  "What did you do?",
-  "Did you _____ as a way to end your life?",
-  "Did you want to die (even a little) when you _____?",
-  "Were you trying to end your life when you _____?",
-  "Or did you think it was possible you could have died from _____?",
-  "Or did you do it purely for other reasons / without ANY intention of killing yourself (like to relieve stress, feel better, get sympathy, or get something else to happen)?",
+/** Question 1's id. It is stored as behavior.actualAttempt, not under
+ *  actualAttemptQuestions. */
+export const ACTUAL_ATTEMPT_PRIMARY_ID = "madeAttempt" as const;
+export type ActualAttemptQuestionId =
+  | typeof ACTUAL_ATTEMPT_PRIMARY_ID
+  | ActualAttemptFollowUpId;
+
+/** The nine Actual Attempt questions, in display order. */
+export const ACTUAL_ATTEMPT_QUESTIONS: ReadonlyArray<{
+  id: ActualAttemptQuestionId;
+  text: string;
+}> = [
+  { id: "madeAttempt", text: "Have you made a suicide attempt?" },
+  { id: "harmYourself", text: "Have you done anything to harm yourself?" },
+  {
+    id: "dangerousCouldHaveDied",
+    text: "Have you done anything dangerous where you could have died?",
+  },
+  { id: "whatDidYouDo", text: "What did you do?" },
+  {
+    id: "didAsWayToEndLife",
+    text: "Did you______ as a way to end your life?",
+  },
+  {
+    id: "wantedToDie",
+    text: "Did you want to die (even a little) when you_____?",
+  },
+  {
+    id: "tryingToEndLife",
+    text: "Were you trying to end your life when you _____?",
+  },
+  {
+    id: "thoughtCouldHaveDied",
+    text: "Or Did you think it was possible you could have died from_____?",
+  },
+  {
+    id: "otherReasons",
+    text: "Or did you do it purely for other reasons / without ANY intention of killing yourself (like to relieve stress, feel better, get sympathy, or get something else to happen)?",
+  },
 ];
 
 export interface BehaviorQuestion {
@@ -202,6 +239,34 @@ export const getBehaviorCount = (
     ? r.behavior[key].lifetimeCount
     : r.behavior[key].past3MonthsCount;
 
+/** Answer / description for any of the nine Actual Attempt questions.
+ *  Question 1 reads the explicit Actual Attempt response. A version 1
+ *  record has no Questions 2–9: they read as not captured. */
+export const getActualAttemptAnswer = (
+  r: FullLifetimeResponses,
+  id: ActualAttemptQuestionId,
+  period: BehaviorPeriod,
+): YesNo =>
+  id === ACTUAL_ATTEMPT_PRIMARY_ID
+    ? r.behavior.actualAttempt[period]
+    : (r.actualAttemptQuestions?.[id]?.[period] ?? "unanswered");
+export const getActualAttemptDescription = (
+  r: FullLifetimeResponses,
+  id: ActualAttemptQuestionId,
+  period: BehaviorPeriod,
+): string =>
+  id === ACTUAL_ATTEMPT_PRIMARY_ID
+    ? getBehaviorDescription(r, "actualAttempt", period)
+    : (r.actualAttemptQuestions?.[id]?.[
+        period === "lifetime"
+          ? "lifetimeDescription"
+          : "past3MonthsDescription"
+      ] ?? "");
+/** True when this record never captured Questions 2–9 (legacy). */
+export const lacksActualAttemptQuestions = (
+  r: FullLifetimeResponses,
+): boolean => !r.actualAttemptQuestions;
+
 const descField = (p: BehaviorPeriod) =>
   p === "lifetime" ? "lifetimeDescription" : "past3MonthsDescription";
 const countField = (p: BehaviorPeriod) =>
@@ -253,7 +318,23 @@ export function normalizeBehaviorAttempts(
     }
     behavior[key] = item;
   }
-  const next = { ...r, behavior };
+  let actualAttemptQuestions = r.actualAttemptQuestions;
+  if (actualAttemptQuestions) {
+    const q = { ...actualAttemptQuestions };
+    for (const id of ACTUAL_ATTEMPT_FOLLOW_UP_IDS) {
+      const item = { ...q[id] };
+      // A description lives only while its own answer is Yes.
+      if (item.lifetime !== "yes") item.lifetimeDescription = "";
+      if (item.past3Months !== "yes") item.past3MonthsDescription = "";
+      q[id] = item;
+    }
+    actualAttemptQuestions = q;
+  }
+  const next = {
+    ...r,
+    behavior,
+    ...(actualAttemptQuestions ? { actualAttemptQuestions } : {}),
+  };
   const attempts = { ...r.attempts };
   for (const key of ATTEMPT_KEYS) {
     attempts[key] = isAttemptDetailsApplicable(next)
@@ -301,6 +382,40 @@ export function setBehaviorDescription(
     },
   });
 }
+/** Sets one of Questions 2–9 for one period; nothing else changes. */
+export function setFollowUpAnswer(
+  r: FullLifetimeResponses,
+  id: ActualAttemptFollowUpId,
+  period: BehaviorPeriod,
+  answer: YesNo,
+): FullLifetimeResponses {
+  const prev = r.actualAttemptQuestions?.[id];
+  if (!prev) return r;
+  return normalizeBehaviorAttempts({
+    ...r,
+    actualAttemptQuestions: {
+      ...r.actualAttemptQuestions!,
+      [id]: { ...prev, [period]: answer },
+    },
+  });
+}
+export function setFollowUpDescription(
+  r: FullLifetimeResponses,
+  id: ActualAttemptFollowUpId,
+  period: BehaviorPeriod,
+  description: string,
+): FullLifetimeResponses {
+  const prev = r.actualAttemptQuestions?.[id];
+  if (!prev) return r;
+  return normalizeBehaviorAttempts({
+    ...r,
+    actualAttemptQuestions: {
+      ...r.actualAttemptQuestions!,
+      [id]: { ...prev, [descField(period)]: description },
+    },
+  });
+}
+
 export function setBehaviorCount(
   r: FullLifetimeResponses,
   key: BehaviorKey,
@@ -341,6 +456,10 @@ export const behaviorErrorKey = (
   field === "answer"
     ? `behavior.${key}.${period}`
     : `behavior.${key}.${period}.count`;
+export const followUpErrorKey = (
+  id: ActualAttemptFollowUpId,
+  period: BehaviorPeriod,
+) => `actualAttempt.${id}.${period}`;
 export const attemptErrorKey = (
   group: AttemptKey,
   field: "date" | "actualLethality" | "potentialLethality",
@@ -378,6 +497,11 @@ export function validateBehaviorAttempts(
           errors[behaviorErrorKey(q.key, p, "count")] = COUNT_ERROR;
       }
     }
+  if (r.actualAttemptQuestions)
+    for (const id of ACTUAL_ATTEMPT_FOLLOW_UP_IDS)
+      for (const p of BEHAVIOR_PERIODS)
+        if (r.actualAttemptQuestions[id][p] === "unanswered")
+          errors[followUpErrorKey(id, p)] = "Select Yes or No.";
   if (isAttemptDetailsApplicable(r))
     for (const g of ATTEMPT_GROUPS) {
       const a = r.attempts[g.key];
@@ -408,11 +532,24 @@ export function behaviorAttemptErrorOrder(
   r: FullLifetimeResponses,
 ): string[] {
   const order: string[] = [];
-  for (const q of BEHAVIOR_QUESTIONS)
+  for (const q of BEHAVIOR_QUESTIONS) {
+    if (q.key === "actualAttempt") {
+      // Questions 1–9 in display order, then the two totals.
+      for (const p of BEHAVIOR_PERIODS)
+        order.push(behaviorErrorKey(q.key, p));
+      if (r.actualAttemptQuestions)
+        for (const id of ACTUAL_ATTEMPT_FOLLOW_UP_IDS)
+          for (const p of BEHAVIOR_PERIODS)
+            order.push(followUpErrorKey(id, p));
+      for (const p of BEHAVIOR_PERIODS)
+        order.push(behaviorErrorKey(q.key, p, "count"));
+      continue;
+    }
     for (const p of BEHAVIOR_PERIODS) {
       order.push(behaviorErrorKey(q.key, p));
       if (q.countLabel) order.push(behaviorErrorKey(q.key, p, "count"));
     }
+  }
   for (const g of ATTEMPT_GROUPS)
     for (const f of ["date", "actualLethality", "potentialLethality"] as const)
       order.push(attemptErrorKey(g.key, f));

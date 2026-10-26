@@ -747,7 +747,7 @@ describe("stage changes", () => {
     });
     const before = structuredClone(lookup("VMS-5101"));
     changeFFMentorStage("VMS-5101", {
-      stage: "Matched",
+      stage: "Interview",
       expectedStage: null,
       actor,
     });

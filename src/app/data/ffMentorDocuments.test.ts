@@ -46,14 +46,14 @@ describe("required documents", () => {
       "autoInsurance",
       "virtus",
       "dcfs",
-      "fingerprint",
+      "accurateBiometrics",
       "cpi",
     ]);
     expect(types(make(["school"]))).toEqual([
       "driversLicense",
       "virtus",
       "dcfs",
-      "fingerprint",
+      "accurateBiometrics",
     ]);
     expect(types(make(["work"]))).toEqual([
       "driversLicense",
@@ -64,8 +64,48 @@ describe("required documents", () => {
       "driversLicense",
       "virtus",
       "dcfs",
-      "fingerprint",
+      "accurateBiometrics",
     ]);
+  });
+});
+
+describe("Accurate Biometrics upload", () => {
+  it("counts per program: 6 / 4 / 3", () => {
+    expect(types(make(["community"]))).toHaveLength(6);
+    expect(types(make(["school"]))).toHaveLength(4);
+    expect(types(make(["work"]))).toHaveLength(3);
+  });
+  it("an old Fingerprint Receipt or agreement signature never becomes the upload", () => {
+    const a = make(
+      ["community"],
+      { fingerprint: file("fp1") },
+      {},
+    );
+    a.answers.consent.agreements.accurateBiometrics =
+      "October 1, 2026 at 9:00:00 AM";
+    const st = ffDocumentStatus(
+      a,
+      staff({ fingerprint: { status: "approved", fileId: "fp1" } }),
+      "accurateBiometrics",
+    );
+    expect(st.fileState).toBe("Not Uploaded");
+    expect(st.approval).toBe("Pending");
+    expect(types(a)).not.toContain("fingerprint");
+  });
+  it("a real upload has its own file-specific review", () => {
+    const a = make(["school"], {}, { accurateBiometrics: file("ab1") });
+    expect(
+      ffDocumentStatus(a, staff(), "accurateBiometrics").approval,
+    ).toBe("Pending Approval");
+    expect(
+      ffDocumentStatus(
+        a,
+        staff({
+          accurateBiometrics: { status: "approved", fileId: "ab1" },
+        }),
+        "accurateBiometrics",
+      ).approval,
+    ).toBe("Approved");
   });
 });
 
@@ -209,8 +249,8 @@ describe("assessment", () => {
     const r = assessFFDocuments(a, s, new Date(2026, 9, 20));
     expect(r.applicable).toHaveLength(6);
     expect(r.missing.sort()).toEqual([
+      "accurateBiometrics",
       "autoInsurance",
-      "fingerprint",
     ]);
     expect(r.unavailable).toEqual(["cpi"]);
     expect(r.approved.sort()).toEqual(["dcfs", "virtus"]);

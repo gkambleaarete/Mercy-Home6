@@ -7,7 +7,7 @@ import {
   FullLifetimeBehaviorSection,
 } from "./CssrsFullLifetimeBehaviorSections";
 import { CssrsFullLifetimeDetails, CssrsFullLifetimeFields, fullLifetimeFieldFocusId } from "./CssrsFullLifetimeFields";
-import { setAttemptField, setBehaviorAnswer, setBehaviorCount, setBehaviorDescription } from "../../data/cssrsFullLifetimeBehavior";
+import { setAttemptField, setBehaviorAnswer, setBehaviorCount, setBehaviorDescription, setFollowUpAnswer } from "../../data/cssrsFullLifetimeBehavior";
 import { validFullLifetime } from "../../data/cssrsTestFixtures";
 import { emptyFullLifetimeResponses } from "../../data/cssrsTypes";
 
@@ -25,8 +25,9 @@ describe("Behavior section (edit)", () => {
     expect(html).toContain("Have you made a suicide attempt?");
     expect(html).toContain("Past 3 Months");
     expect(html).not.toContain("Past 1 Month");
-    // unanswered: no description / count fields yet
-    expect(html).not.toContain("-count");
+    // unanswered: no description fields; only the Actual Attempt totals exist
+    // (disabled until Question 1 is Yes), no count for other categories.
+    expect(html).not.toContain("preparatoryActs-lifetime-count");
     expect(html).not.toContain("-description");
   });
 
@@ -121,5 +122,45 @@ describe("form composition", () => {
       expect(ids.has(id), `${k} → ${id}`).toBe(true);
     }
     expect(fullLifetimeFieldFocusId("p", "assessmentDate")).toBe("test-date");
+  });
+});
+
+describe("Actual Attempt: nine questions", () => {
+  const html = (r = emptyFullLifetimeResponses()) =>
+    renderToStaticMarkup(<FullLifetimeBehaviorSection idPrefix="x" responses={r} onChange={noop} />);
+
+  it("renders all nine questions and 18 uniquely id'd Yes/No groups, with one pair of totals", () => {
+    const h = html();
+    for (const t of ["Have you made a suicide attempt?", "What did you do?", "Did you______ as a way to end your life?", "Or Did you think it was possible you could have died from_____?"])
+      expect(h).toContain(t.replace(/&/g, "&amp;"));
+    const yes = idsOf(h).filter((id) => /^x-behavior-actualAttempt-.*-yes$/.test(id));
+    expect(yes).toHaveLength(18);
+    expect(new Set(idsOf(h)).size).toBe(idsOf(h).length);
+    expect(h).not.toContain("Interview prompts");
+    expect(h.match(/Total Number of Attempts: Lifetime/g)).toHaveLength(1);
+    expect(h.match(/Total Number of Attempts: Past 3 Months/g)).toHaveLength(1);
+  });
+
+  it("shows a description only under its own Yes", () => {
+    let r = setFollowUpAnswer(emptyFullLifetimeResponses(), "wantedToDie", "lifetime", "yes");
+    const h = html(r);
+    expect(h).toContain('id="x-behavior-actualAttempt-wantedToDie-lifetime-description"');
+    expect(h).not.toContain("wantedToDie-past3Months-description");
+    expect(h).not.toContain("harmYourself-lifetime-description");
+  });
+
+  it("read-only shows all nine for both periods; legacy shows 'Not captured in this assessment' for 2–9", () => {
+    const h = renderToStaticMarkup(<FullLifetimeBehaviorAttemptDetails responses={validFullLifetime()} />);
+    expect(h.match(/data-actual-attempt-question=/g)).toHaveLength(9);
+    expect(h).not.toContain("Not captured in this assessment");
+    const legacy: any = structuredClone(validFullLifetime());
+    legacy.version = 1;
+    delete legacy.actualAttemptQuestions;
+    const l = renderToStaticMarkup(<FullLifetimeBehaviorAttemptDetails responses={legacy} />);
+    expect(l.match(/Not captured in this assessment/g)).toHaveLength(16);
+  });
+
+  it("focuses the first missing follow-up control", () => {
+    expect(fullLifetimeFieldFocusId("x", "actualAttempt.harmYourself.lifetime")).toBe("x-behavior-actualAttempt-harmYourself-lifetime-yes");
   });
 });

@@ -34,6 +34,13 @@ export const CSSRS_TEST_TYPE: Record<CssrsInstrument, string> = {
  *  schema version in cssrsAssessmentStore). */
 export const CSSRS_PAYLOAD_VERSION = 1 as const;
 
+/** Full-Lifetime payload versions. 1 = records saved before the Actual
+ *  Attempt question set (no `actualAttemptQuestions`); 2 = current. Kept
+ *  apart from CSSRS_PAYLOAD_VERSION, which the Screener still uses. New and
+ *  edited saves are always version 2; version 1 stays readable. */
+export const FULL_LIFETIME_LEGACY_VERSION = 1 as const;
+export const FULL_LIFETIME_PAYLOAD_VERSION = 2 as const;
+
 /** One Yes/No item with an optional free-text description. */
 export interface YesNoItem {
   answer: YesNo;
@@ -122,6 +129,31 @@ export interface BehaviorItem {
   past3MonthsCount: Rating;
 }
 
+/** Actual Attempt questions 2–9, keyed by stable ids (never by wording or
+ *  position). Question 1 ("Have you made a suicide attempt?") is the
+ *  existing explicit Actual Attempt response, behavior.actualAttempt, which
+ *  keeps driving Attempt Details and the totals. */
+export const ACTUAL_ATTEMPT_FOLLOW_UP_IDS = [
+  "harmYourself",
+  "dangerousCouldHaveDied",
+  "whatDidYouDo",
+  "didAsWayToEndLife",
+  "wantedToDie",
+  "tryingToEndLife",
+  "thoughtCouldHaveDied",
+  "otherReasons",
+] as const;
+export type ActualAttemptFollowUpId =
+  (typeof ACTUAL_ATTEMPT_FOLLOW_UP_IDS)[number];
+
+/** One independent Yes/No per period, each with its own description. */
+export interface ActualAttemptFollowUp {
+  lifetime: YesNo;
+  lifetimeDescription: string;
+  past3Months: YesNo;
+  past3MonthsDescription: string;
+}
+
 export const ATTEMPT_KEYS = [
   "mostRecent",
   "mostLethal",
@@ -145,7 +177,9 @@ export interface MostSevereIdeation {
 }
 
 export interface FullLifetimeResponses {
-  version: typeof CSSRS_PAYLOAD_VERSION;
+  version:
+    | typeof FULL_LIFETIME_LEGACY_VERSION
+    | typeof FULL_LIFETIME_PAYLOAD_VERSION;
   ideation: Record<IdeationKey, IdeationItem>;
   /** Intensity of Ideation: Lifetime Most Severe and Recent (= Past 1
    *  Month) Most Severe. */
@@ -155,6 +189,12 @@ export interface FullLifetimeResponses {
   };
   intensity: Record<IntensityKey, IntensityItem>;
   behavior: Record<BehaviorKey, BehaviorItem>;
+  /** Actual Attempt questions 2–9. Present in version 2; absent in
+   *  version 1 records (those answers were never captured). */
+  actualAttemptQuestions?: Record<
+    ActualAttemptFollowUpId,
+    ActualAttemptFollowUp
+  >;
   attempts: Record<AttemptKey, AttemptDetails>;
 }
 
@@ -200,6 +240,12 @@ export const emptyBehaviorItem = (): BehaviorItem => ({
   past3MonthsDescription: "",
   past3MonthsCount: null,
 });
+export const emptyActualAttemptFollowUp = (): ActualAttemptFollowUp => ({
+  lifetime: "unanswered",
+  lifetimeDescription: "",
+  past3Months: "unanswered",
+  past3MonthsDescription: "",
+});
 export const emptyAttemptDetails = (): AttemptDetails => ({
   date: "",
   actualLethality: null,
@@ -209,7 +255,7 @@ export const emptyAttemptDetails = (): AttemptDetails => ({
 
 export const emptyFullLifetimeResponses =
   (): FullLifetimeResponses => ({
-    version: CSSRS_PAYLOAD_VERSION,
+    version: FULL_LIFETIME_PAYLOAD_VERSION,
     ideation: fromKeys(IDEATION_KEYS, emptyIdeationItem),
     mostSevereIdeation: {
       lifetime: emptyMostSevereIdeation(),
@@ -217,8 +263,29 @@ export const emptyFullLifetimeResponses =
     },
     intensity: fromKeys(INTENSITY_KEYS, emptyIntensityItem),
     behavior: fromKeys(BEHAVIOR_KEYS, emptyBehaviorItem),
+    actualAttemptQuestions: fromKeys(
+      ACTUAL_ATTEMPT_FOLLOW_UP_IDS,
+      emptyActualAttemptFollowUp,
+    ),
     attempts: fromKeys(ATTEMPT_KEYS, emptyAttemptDetails),
   });
+
+/** A version 1 record opened for editing: the same record with the new
+ *  Actual Attempt questions added, all unanswered (nothing is invented).
+ *  Version 2 passes through. Pure: the saved record is not touched. */
+export const upgradeFullLifetimeResponses = (
+  r: FullLifetimeResponses,
+): FullLifetimeResponses =>
+  r.version === FULL_LIFETIME_PAYLOAD_VERSION && r.actualAttemptQuestions
+    ? r
+    : {
+        ...r,
+        version: FULL_LIFETIME_PAYLOAD_VERSION,
+        actualAttemptQuestions: fromKeys(
+          ACTUAL_ATTEMPT_FOLLOW_UP_IDS,
+          emptyActualAttemptFollowUp,
+        ),
+      };
 
 // ─── Validation (used when reading persisted data) ─────────────────────────
 
@@ -256,6 +323,12 @@ const isBehaviorItem = (v: unknown) =>
   isYesNo(v.past3Months) &&
   typeof v.past3MonthsDescription === "string" &&
   isRating(v.past3MonthsCount);
+const isFollowUp = (v: unknown) =>
+  isObj(v) &&
+  isYesNo(v.lifetime) &&
+  typeof v.lifetimeDescription === "string" &&
+  isYesNo(v.past3Months) &&
+  typeof v.past3MonthsDescription === "string";
 const isAttemptDetails = (v: unknown) =>
   isObj(v) &&
   typeof v.date === "string" &&
@@ -273,13 +346,28 @@ export const isScreenerResponses = (
   (v.relatedIncidentReportId === null ||
     typeof v.relatedIncidentReportId === "string");
 
+/** Readable Full-Lifetime payload: the current version (with the Actual
+ *  Attempt questions) or a legacy version 1 record (without them). */
 export const isFullLifetimeResponses = (
   v: unknown,
 ): v is FullLifetimeResponses =>
   isObj(v) &&
-  v.version === CSSRS_PAYLOAD_VERSION &&
+  (v.version === FULL_LIFETIME_LEGACY_VERSION ||
+    (v.version === FULL_LIFETIME_PAYLOAD_VERSION &&
+      hasKeys(
+        v.actualAttemptQuestions,
+        ACTUAL_ATTEMPT_FOLLOW_UP_IDS,
+        isFollowUp,
+      ))) &&
   hasKeys(v.ideation, IDEATION_KEYS, isIdeationItem) &&
   hasKeys(v.mostSevereIdeation, ["lifetime", "recent"], isMostSevere) &&
   hasKeys(v.intensity, INTENSITY_KEYS, isIntensityItem) &&
   hasKeys(v.behavior, BEHAVIOR_KEYS, isBehaviorItem) &&
   hasKeys(v.attempts, ATTEMPT_KEYS, isAttemptDetails);
+
+/** A payload that may be SAVED: the current version only. */
+export const isCurrentFullLifetimeResponses = (
+  v: unknown,
+): v is FullLifetimeResponses =>
+  isFullLifetimeResponses(v) &&
+  v.version === FULL_LIFETIME_PAYLOAD_VERSION;

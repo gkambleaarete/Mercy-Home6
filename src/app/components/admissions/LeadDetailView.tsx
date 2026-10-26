@@ -158,6 +158,7 @@ import {
 import { resolveCssrsOwnership } from "../../lib/cssrsOwnership";
 import {
   cssrsAsTestRows,
+  cssrsForAdmissionsRecord,
   cssrsForYouth,
   useCssrsAssessments,
 } from "../../data/cssrsAssessmentStore";
@@ -170,11 +171,14 @@ import {
 } from "../../data/cssrsScreener";
 import {
   emptyFullLifetimeResponses,
+  upgradeFullLifetimeResponses,
   emptyScreenerResponses,
   type FullLifetimeResponses,
   type ScreenerResponses,
 } from "../../data/cssrsTypes";
 import { saveCssrsFullLifetime } from "../../data/cssrsFullLifetimeSave";
+import { useRiskFactors } from "../../data/riskFactorStore";
+import { deriveFullLifetimeRequirement } from "../../lib/cssrsRequirement";
 import {
   fullLifetimeErrorOrder,
   validateFullLifetime,
@@ -3433,6 +3437,25 @@ Contact Information:
     Record<string, string>
   >({});
   const cssrsRead = useCssrsAssessments();
+  // Full-Lifetime requirement from the saved Risk Factors of THIS Admissions
+  // record only (never another record's, never a default youth).
+  const riskFactorRead = useRiskFactors();
+  const fullLifetimeRequirement = deriveFullLifetimeRequirement(
+    riskFactorRead,
+    cssrsOwnership.admissionsRecordId,
+  );
+  const ownedFullLifetime = useMemo(
+    () =>
+      cssrsOwnership.admissionsRecordId === null
+        ? []
+        : cssrsForAdmissionsRecord(
+            cssrsRead,
+            cssrsOwnership.admissionsRecordId,
+          )
+            .filter((r) => r.instrument === "cssrs-full-lifetime")
+            .map((r) => ({ id: r.id, date: r.assessmentDate })),
+    [cssrsRead, cssrsOwnership.admissionsRecordId],
+  );
   const cssrsRecords = useMemo(
     () => cssrsForYouth(cssrsRead, cssrsOwnership.youthKey),
     [cssrsRead, cssrsOwnership.youthKey],
@@ -6202,6 +6225,22 @@ Contact Information:
   };
 
   // Testing & Assessments Handlers
+  // Same restriction as the Create New Test button.
+  const newTestRestriction =
+    lead.status !== "Active" && lead.status !== "Referral"
+      ? "New tests can only be added while the record is Active or Referral."
+      : null;
+  // Requirement action: opens the existing Add Standardized Test dialog on
+  // C-SSRS Full-Lifetime. Nothing is saved until the form's own Save, and an
+  // assessment draft that is already open is never replaced.
+  const handleCompleteCssrsFullLifetime = () => {
+    if (testingDialogOpen || newTestRestriction) return;
+    handleCreateNewTest();
+    setTestingFormData((prev) => ({
+      ...prev,
+      test: CSSRS_FULL_LIFETIME_TEST,
+    }));
+  };
   const handleCreateNewTest = () => {
     setEditingTestingId(null);
     resetCssrsDraft();
@@ -8890,7 +8929,12 @@ Contact Information:
       setCssrsSaveError(null);
       if (record.instrument === "cssrs-screener")
         setCssrsResponses(structuredClone(record.responses));
-      else setCssrsFlResponses(structuredClone(record.responses));
+      // A saved record from before the Actual Attempt questions opens with
+      // them added (unanswered); the stored record is untouched until Save.
+      else
+        setCssrsFlResponses(
+          upgradeFullLifetimeResponses(structuredClone(record.responses)),
+        );
       setTestingFormData({
         date: record.assessmentDate,
         test:
@@ -12236,6 +12280,15 @@ Contact Information:
                       : activeClinicalSection) as any
                   }
                   initialSubSection={activeClinicalSubSection}
+                  riskFactorOwner={{
+                    admissionsRecordId:
+                      cssrsOwnership.admissionsRecordId,
+                    youthKey: cssrsOwnership.youthKey,
+                  }}
+                  onCompleteFullLifetime={
+                    handleCompleteCssrsFullLifetime
+                  }
+                  fullLifetimeUnavailableReason={newTestRestriction}
                   onSectionChange={(
                     mainSection,
                     subSection,
@@ -12953,6 +13006,15 @@ Contact Information:
               }
               testingSortColumn={testingSortColumn}
               testingSortDirection={testingSortDirection}
+              fullLifetimeRequirement={fullLifetimeRequirement}
+              ownedFullLifetime={ownedFullLifetime}
+              onCompleteFullLifetime={handleCompleteCssrsFullLifetime}
+              fullLifetimeUnavailableReason={newTestRestriction}
+              onViewCssrs={(id: string) => {
+                setSelectedTestId(id);
+                setViewTestDialogOpen(true);
+              }}
+              onEditCssrs={handleEditTestRow}
             />
 
             {/* CAMPUS RESTRICTIONS TAB */}

@@ -7,6 +7,7 @@ import {
   FullLifetimeIntensitySection,
 } from "./CssrsFullLifetimeSections";
 import {
+  actualAttemptQuestionId,
   attemptId,
   behaviorId,
   FullLifetimeAttemptDetailsSection,
@@ -17,6 +18,7 @@ import type {
   AttemptKey,
   BehaviorKey,
 } from "../../data/cssrsTypes";
+import type { ActualAttemptQuestionId } from "../../data/cssrsFullLifetimeBehavior";
 
 // C-SSRS Full-Lifetime form body (US 20139): all four sections, rendered
 // inside the existing Standardized Test dialog below its Date / Test row.
@@ -32,6 +34,9 @@ export function fullLifetimeFieldFocusId(
 ): string | null {
   if (errorKey === "assessmentDate") return "test-date";
   const [section, a, b, c] = errorKey.split(".");
+  // Actual Attempt questions 2–9: actualAttempt.<questionId>.<period>
+  if (section === "actualAttempt")
+    return `${actualAttemptQuestionId(idPrefix, a as ActualAttemptQuestionId, b as "lifetime")}-yes`;
   if (section === "behavior")
     return c === "count"
       ? `${behaviorId(idPrefix, a as BehaviorKey, b as "lifetime")}-count`

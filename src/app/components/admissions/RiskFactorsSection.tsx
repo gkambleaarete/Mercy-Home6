@@ -4,69 +4,49 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Label } from "../ui/label";
+import { Alert } from "../ui/alert";
 import { Pencil, Trash2, Plus } from "lucide-react";
+import {
+  RISK_FACTOR_OPTIONS,
+  createRiskFactor,
+  deleteRiskFactor,
+  riskFactorsForAdmissionsRecord,
+  updateRiskFactor,
+  useRiskFactors,
+  type RiskFactorRecord,
+} from "../../data/riskFactorStore";
+import { deriveFullLifetimeRequirement } from "../../lib/cssrsRequirement";
+import { CssrsRequirementNotice } from "./CssrsRequirementNotice";
 
-interface RiskFactor {
-  id: string;
-  riskFactor: string;
-  lastOccurred: string;
-  duration: string;
-  frequency: string;
-  details: string;
+type RiskFactor = RiskFactorRecord;
+
+/** Identity of the Admissions record being viewed. Passed explicitly:
+ *  without it nothing is read or written (no default youth is ever used). */
+export interface RiskFactorOwner {
+  /** null on a Constituent profile, which can't own Risk Factors. */
+  admissionsRecordId: string | null;
+  youthKey: string;
 }
 
-// Risk Factor options from requirements
-const RISK_FACTOR_OPTIONS = [
-  "Aggression Toward Others",
-  "Animal Abuse",
-  "Auditory Hallucinations",
-  "AWOL or Runaway",
-  "Binging",
-  "Destruction of Property",
-  "Excessive Exercise",
-  "Encopresis",
-  "Enuresis",
-  "Fire Setting",
-  "Gang Affiliation or Membership",
-  "Homicidal Ideation",
-  "Purging",
-  "Restrictive Eating",
-  "Stealing",
-  "Self-Harm",
-  "Suicidal Ideation",
-  "Sexually Problematic Behavior",
-  "Visual Hallucinations",
-  "Use of Weapon",
-  "Other"
-];
-
-export function RiskFactorsSection() {
-  const [riskFactors, setRiskFactors] = useState<RiskFactor[]>([
-    {
-      id: "1",
-      riskFactor: "Suicidal Ideation",
-      lastOccurred: "November 15, 2023",
-      duration: "2 weeks",
-      frequency: "Occasional",
-      details: "Youth expressed passive ideation during group session; safety plan created"
-    },
-    {
-      id: "2",
-      riskFactor: "Self-Harm",
-      lastOccurred: "January 8, 2024",
-      duration: "3 days",
-      frequency: "Monthly",
-      details: "Superficial cuts on forearm; received immediate counseling and safety monitoring"
-    },
-    {
-      id: "3",
-      riskFactor: "AWOL or Runaway",
-      lastOccurred: "October 22, 2023",
-      duration: "1 day",
-      frequency: "Historical",
-      details: "Ran from previous placement; returned voluntarily after 18 hours"
-    }
-  ]);
+export function RiskFactorsSection({
+  owner,
+  onCompleteFullLifetime,
+  fullLifetimeUnavailableReason,
+}: {
+  owner?: RiskFactorOwner;
+  /** Opens the existing Add Standardized Test dialog on C-SSRS Full-Lifetime. */
+  onCompleteFullLifetime?: () => void;
+  /** The existing restriction that prevents adding a test, when one applies. */
+  fullLifetimeUnavailableReason?: string | null;
+}) {
+  const read = useRiskFactors();
+  const recordId = owner?.admissionsRecordId ?? null;
+  const riskFactors = riskFactorsForAdmissionsRecord(read, recordId);
+  const unreadable = read.status === "error";
+  const requirement = deriveFullLifetimeRequirement(read, recordId);
+  const canWrite = !!owner && recordId !== null && !unreadable;
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRiskFactor, setEditingRiskFactor] = useState<RiskFactor | null>(null);
@@ -79,6 +59,7 @@ export function RiskFactorsSection() {
   });
 
   const handleOpenAddDialog = () => {
+    setSaveError(null);
     setEditingRiskFactor(null);
     setFormData({
       riskFactor: "",
@@ -91,6 +72,7 @@ export function RiskFactorsSection() {
   };
 
   const handleOpenEditDialog = (riskFactor: RiskFactor) => {
+    setSaveError(null);
     setEditingRiskFactor(riskFactor);
     setFormData({
       riskFactor: riskFactor.riskFactor,
@@ -103,26 +85,26 @@ export function RiskFactorsSection() {
   };
 
   const handleSave = () => {
-    if (editingRiskFactor) {
-      // Update existing
-      setRiskFactors(riskFactors.map(rf => 
-        rf.id === editingRiskFactor.id 
-          ? { ...rf, ...formData }
-          : rf
-      ));
-    } else {
-      // Add new
-      const newRiskFactor: RiskFactor = {
-        id: Date.now().toString(),
-        ...formData
-      };
-      setRiskFactors([...riskFactors, newRiskFactor]);
+    if (!canWrite || !owner || recordId === null) return;
+    const result = editingRiskFactor
+      ? updateRiskFactor(recordId, editingRiskFactor.id, formData)
+      : createRiskFactor(
+          { admissionsRecordId: recordId, youthKey: owner.youthKey },
+          formData,
+        );
+    if (!result.ok) {
+      // The dialog and the entered values stay as they are.
+      setSaveError(result.error);
+      return;
     }
+    setSaveError(null);
     setDialogOpen(false);
   };
 
   const handleDelete = (id: string) => {
-    setRiskFactors(riskFactors.filter(rf => rf.id !== id));
+    if (!canWrite || recordId === null) return;
+    const result = deleteRiskFactor(recordId, id);
+    setActionError(result.ok ? null : result.error);
   };
 
   const updateFormField = (field: keyof Omit<RiskFactor, 'id'>, value: string) => {
@@ -143,6 +125,7 @@ export function RiskFactorsSection() {
         </div>
         <Button
           onClick={handleOpenAddDialog}
+          disabled={!canWrite}
           className="rounded-full h-8 px-4 text-[13px] font-medium"
           style={{
             backgroundColor: '#145F33',
@@ -153,6 +136,25 @@ export function RiskFactorsSection() {
           Add Risk Factor
         </Button>
       </div>
+
+      {!owner || recordId === null ? (
+        <Alert variant="info">
+          Risk Factors are recorded on an Admissions record. Open this youth's
+          Admissions record to view or add them.
+        </Alert>
+      ) : unreadable ? (
+        <Alert variant="error">
+          Saved Risk Factor data can't be read, so Risk Factors can't be shown
+          or changed. The saved data has been left as it is.
+        </Alert>
+      ) : null}
+      {actionError && <Alert variant="error">{actionError}</Alert>}
+      <CssrsRequirementNotice
+        idPrefix="risk-factors"
+        requirement={requirement}
+        onComplete={onCompleteFullLifetime}
+        unavailableReason={fullLifetimeUnavailableReason}
+      />
 
       {/* Desktop/Tablet: Table View (hidden on mobile) */}
       <div 
@@ -431,6 +433,7 @@ export function RiskFactorsSection() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {saveError && <Alert variant="error">{saveError}</Alert>}
             {/* Risk Factor */}
             <div>
               <Label 
@@ -455,6 +458,11 @@ export function RiskFactorsSection() {
                 {RISK_FACTOR_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
+                {/* An earlier saved spelling stays selectable while editing it. */}
+                {editingRiskFactor &&
+                  !(RISK_FACTOR_OPTIONS as readonly string[]).includes(editingRiskFactor.riskFactor) && (
+                    <option value={editingRiskFactor.riskFactor}>{editingRiskFactor.riskFactor}</option>
+                  )}
               </select>
             </div>
 

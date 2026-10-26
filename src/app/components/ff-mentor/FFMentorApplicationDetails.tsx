@@ -578,7 +578,6 @@ export function ApplicationDetailsPanel({
           {dArea("priorMercyHome", "Have you ever been employed by or volunteered for a program or department at Mercy Home for Boys & Girls?")}
           {dArea("refusedYouthProgram", "Have you ever applied for and been refused from participating in a volunteer program that asked you to work with youth?")}
           {dArea("disability", "Have you had a medical or physical disability which would preclude you from performing the volunteer work which you are seeking?")}
-          {dArea("recentConviction", "Have you been convicted of a felony or misdemeanor in the past ten years?")}
           {dArea("psychHelp", "Have you sought help, counseling or treatment for any type of psychological or emotional issue in the last three years?")}
           {dArea("dietaryRestrictions", "Do you have food allergies or dietary restrictions?")}
           {dArea("emergencyContact", "Emergency Contact Information")}

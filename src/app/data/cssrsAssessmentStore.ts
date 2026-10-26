@@ -27,6 +27,7 @@ import {
   CSSRS_TEST_TYPE,
   emptyFullLifetimeResponses,
   emptyScreenerResponses,
+  isCurrentFullLifetimeResponses,
   isFullLifetimeResponses,
   isScreenerResponses,
   type CssrsInstrument,
@@ -427,7 +428,8 @@ export function createCssrsAssessment(
     record = { ...base, instrument: input.instrument, responses };
   } else {
     const given = input.responses ?? emptyFullLifetimeResponses();
-    if (!isFullLifetimeResponses(given))
+    // New saves are always the current payload version.
+    if (!isCurrentFullLifetimeResponses(given))
       return invalid("responses", "The responses are not valid.");
     // Answers that do not apply are never saved, and an incomplete or
     // inconsistent Full Lifetime assessment cannot be saved at all.
@@ -485,7 +487,8 @@ export function updateCssrsAssessment(
   const valid =
     prev.instrument === "cssrs-screener"
       ? isScreenerResponses(edit.responses)
-      : isFullLifetimeResponses(edit.responses);
+      : // Reading accepts legacy records; saving needs the current version.
+        isCurrentFullLifetimeResponses(edit.responses);
   if (!valid)
     return invalid("responses", "The responses are not valid.");
   if (prev.instrument === "cssrs-full-lifetime") {

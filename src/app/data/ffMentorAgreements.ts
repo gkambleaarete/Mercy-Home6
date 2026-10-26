@@ -36,18 +36,14 @@ export interface FFAgreementDefinition {
 
 /**
  * Required agreements, keyed exactly as the wizard keys them. Program-
- * specific forms are separate entries (CB and SB fingerprint forms, three
- * Mentor Description forms) and never stand in for one another.
+ * specific forms are separate entries (three Mentor Description forms) and
+ * never stand in for one another. Code of Ethics, Publicity Release, both
+ * Fingerprint Submission forms and the Accurate Biometrics agreement are
+ * retired: they are not listed or required, but anything already saved
+ * under those keys stays in storage untouched.
  */
 export const FF_AGREEMENT_DEFINITIONS: FFAgreementDefinition[] =
   [
-    {
-      id: "backgroundConsent",
-      name: "Background & Driving Check Consent",
-      category: "Consent",
-      programs: ALL,
-      source: "backgroundSig",
-    },
     {
       id: "finalAttestation",
       name: "Final Attestation",
@@ -56,23 +52,16 @@ export const FF_AGREEMENT_DEFINITIONS: FFAgreementDefinition[] =
       source: "attestationSig",
     },
     {
-      id: "clientConfidentiality",
-      name: "Client Confidentiality Agreement",
-      category: "Agreement",
-      programs: ALL,
-      source: "agreement",
-    },
-    {
-      id: "codeOfEthics",
-      name: "Code of Ethics",
-      category: "Agreement",
-      programs: ALL,
-      source: "agreement",
-    },
-    {
-      id: "publicityRelease",
-      name: "Publicity Release",
+      id: "backgroundConsent",
+      name: "Mentor Consent to Background & Driving Check",
       category: "Consent",
+      programs: ALL,
+      source: "backgroundSig",
+    },
+    {
+      id: "clientConfidentiality",
+      name: "Mentor's Agreement to Uphold Client Confidentiality",
+      category: "Agreement",
       programs: ALL,
       source: "agreement",
     },
@@ -85,81 +74,47 @@ export const FF_AGREEMENT_DEFINITIONS: FFAgreementDefinition[] =
     },
     {
       id: "mandatedReporter",
-      name: "Mandated Reporter Acknowledgement",
+      name: "Acknowledgement for Mandated Reporter Status",
       category: "Agreement",
       programs: ALL,
       source: "agreement",
     },
     {
       id: "publicTransit",
-      name: "Public Transit Agreement",
+      name: "Mentor's Public Transit Agreement",
       category: "Agreement",
       programs: ["community"],
       source: "agreement",
     },
     {
       id: "psychScreening",
-      name: "Psychological Screening Waiver",
+      name: "Waiver for Psychological Screening Feedback",
       category: "Consent",
       programs: ["community"],
-      source: "agreement",
-    },
-    {
-      id: "accurateBiometrics",
-      name: "Accurate Biometrics Form",
-      category: "Consent",
-      programs: ["community", "school"],
-      source: "agreement",
-    },
-    {
-      id: "fingerprintConsentCB",
-      name: "Fingerprint Submission Consent and Notification Form — Community-Based",
-      category: "Consent",
-      programs: ["community"],
-      source: "agreement",
-    },
-    {
-      id: "fingerprintConsentSB",
-      name: "Fingerprint Submission Consent and Notification Form — School-Based",
-      category: "Consent",
-      programs: ["school"],
       source: "agreement",
     },
     {
       id: "mentorDescriptionCB",
-      name: "Mentor Description Form — Community-Based",
+      name: "Mentor Description Form (CB)",
       category: "Program Form",
       programs: ["community"],
       source: "agreement",
     },
     {
       id: "mentorDescriptionSB",
-      name: "Mentor Description Form — School-Based",
+      name: "Mentor Description Form (SB)",
       category: "Program Form",
       programs: ["school"],
       source: "agreement",
     },
     {
       id: "mentorDescriptionWB",
-      name: "Mentor Description Form — Work-Based",
+      name: "Mentor Description Form (WB)",
       category: "Program Form",
       programs: ["work"],
       source: "agreement",
     },
   ];
-
-/**
- * Names for older agreement keys the wizard has saved (its earlier
- * Community-Based documents). They are shown as additional entries only —
- * never as substitutes for a required form, even with a similar name.
- */
-const ADDITIONAL_AGREEMENT_NAMES: Record<string, string> = {
-  cbMentorAgreement: "Community-Based Mentor Agreement",
-  publicTransitAgreement: "Public Transit Use Agreement",
-  psychScreeningWaiver:
-    "Psychological Screening Waiver (earlier form)",
-  cbConfidentiality: "Confidentiality & Code of Conduct",
-};
 
 export type FFAgreementStatus =
   | "Signed and Agreed"
@@ -271,7 +226,7 @@ function fromAgreementKey(
   return { status: "Signed and Agreed", signedAt: text(stamp) };
 }
 
-/** Every applicable required agreement, then any additional saved ones. */
+/** Every applicable required agreement from the current catalog. */
 export function ffAgreementRows(
   app: FFMentorApplication,
   staff: FFMentorApplicationStaff,
@@ -326,31 +281,9 @@ export function ffAgreementRows(
     };
   });
 
-  const known = new Set(
-    FF_AGREEMENT_DEFINITIONS.map((d) => d.id),
-  );
-  const extraKeys = [
-    ...new Set([
-      ...Object.keys(agreements),
-      ...Object.keys(docsSigned),
-    ]),
-  ].filter((k) => !known.has(k));
-  const additional = extraKeys.map((k): FFAgreementRow => ({
-    id: k,
-    name: ADDITIONAL_AGREEMENT_NAMES[k] ?? k,
-    category: "Additional",
-    appliesTo: [],
-    required: false,
-    status: "Not Signed",
-    ...fromAgreementKey(
-      k,
-      agreements,
-      docsSigned,
-      "Not Signed",
-    ),
-    review: staff.documentReviews[k],
-  }));
-  return [...required, ...additional];
+  // Only the current applicable catalog is shown. Saved keys outside it
+  // (retired or earlier-wizard forms) stay in storage, unread here.
+  return required;
 }
 
 export interface FFAgreementAssessment {

@@ -448,7 +448,7 @@ export function YouthExperienceAndBackground({
       <Section title="Background Disclosure">
         <div className={NARRATIVE_GRID}>
           <Field
-            label="Have you ever been convicted of a crime?"
+            label="Have you been convicted of a felony or misdemeanor in the past ten years?"
             value={yesNo(d.convicted)}
           />
           {d.convicted === true && (
@@ -625,10 +625,6 @@ export function ApplicationDetailsView({
           <Field
             label="Have you had a medical or physical disability which would preclude you from performing the volunteer work which you are seeking?"
             value={d.disability}
-          />
-          <Field
-            label="Have you been convicted of a felony or misdemeanor in the past ten years?"
-            value={d.recentConviction}
           />
           <Field
             label="Have you sought help, counseling or treatment for any type of psychological or emotional issue in the last three years?"

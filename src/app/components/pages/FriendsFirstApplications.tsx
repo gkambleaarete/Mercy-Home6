@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Heart, RefreshCw, Search, X } from "lucide-react";
+import { Download, Heart, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { EmptyState } from "../ui/empty-state";
@@ -24,6 +24,7 @@ import {
 } from "../ui/table";
 import { Badge } from "../ui/badge";
 import { PaginationInfo } from "../ui/pagination";
+import { printMentorProfile } from "../../lib/printMentorProfile";
 import { TablePaginationBar } from "../ui/table-toolbar";
 import {
   SUB_PROGRAMMES,
@@ -38,6 +39,7 @@ import {
 } from "../../data/ffMentorApplication";
 import {
   coordinatorName,
+  getFFMentorApplication,
   getFFMentorApplicationStaff,
   useFFStaffApplications,
 } from "../../data/ffMentorApplicationStore";
@@ -95,6 +97,11 @@ export function FriendsFirstApplications() {
     navigate(`/friends-first-mentor/${id}`, {
       state: { backLabel: "Applications" },
     });
+  };
+
+  const downloadMentorProfile = (id: string) => {
+    const found = getFFMentorApplication(id);
+    if (found.status === "found") printMentorProfile(found.application);
   };
 
   const storeApps = useFFStaffApplications();
@@ -444,7 +451,7 @@ export function FriendsFirstApplications() {
                 <div className="overflow-x-auto">
                   <Table
                     className="w-full"
-                    style={{ minWidth: "900px" }}
+                    style={{ minWidth: "1100px" }}
                   >
                     <TableHeader
                       className="sticky top-0 z-10"
@@ -467,6 +474,7 @@ export function FriendsFirstApplications() {
                           "COORDINATOR",
                           "SUBMITTED",
                           "STAGE",
+                          "ACTIONS",
                         ].map((h, i) => (
                           <TableHead
                             key={h}
@@ -570,6 +578,16 @@ export function FriendsFirstApplications() {
                             <Badge variant={m.stageVariant}>
                               {m.stageLabel}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="px-2 py-3">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => downloadMentorProfile(m.id)}
+                            >
+                              <Download className="h-4 w-4" />
+                              Download Mentor Profile
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}

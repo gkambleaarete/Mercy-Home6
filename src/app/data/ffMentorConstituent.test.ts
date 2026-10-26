@@ -159,9 +159,9 @@ describe("Ready for Match creates and links one Constituent", () => {
     // Re-select current stage: no-op.
     expect(changeFFMentorStage("T-A", { stage: "Ready for Match", expectedStage: "Ready for Match", actor, now })).toEqual({ ok: true, changed: false });
     // Leave and re-enter: reuses and updates, no second record.
-    changeFFMentorStage("T-A", { stage: "Matched", expectedStage: "Ready for Match", actor, now });
+    changeFFMentorStage("T-A", { stage: "Determination", expectedStage: "Ready for Match", actor, now });
     expect(previewFFReadyForMatch("T-A", now)).toEqual({ status: "reuse", constituentId: first.constituent.id });
-    const again: any = rfm("T-A", "Matched");
+    const again: any = rfm("T-A", "Determination");
     expect(again.constituent).toEqual({ id: first.constituent.id, created: false });
     // Second application, same applicant.
     const second: any = rfm("T-B");

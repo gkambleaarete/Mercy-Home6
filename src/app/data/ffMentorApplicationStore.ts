@@ -27,6 +27,7 @@ import {
   type FFApplicationDetailsEdit,
   defaultFFMentorApplicationStaff,
   isFFMentorPipelineStage,
+  isFFMentorSelectableStage,
   maskSsn,
   validateFFAvailability,
   type FFApplicationReference,
@@ -1268,7 +1269,7 @@ export function changeFFMentorStage(
   },
 ): FFStageChangeResult {
   const { stage, expectedStage, actor } = change;
-  if (!isFFMentorPipelineStage(stage))
+  if (!isFFMentorSelectableStage(stage))
     return { ok: false, reason: "invalid" };
   if (!actor?.id?.trim() || !actor.name?.trim())
     return { ok: false, reason: "actor" };

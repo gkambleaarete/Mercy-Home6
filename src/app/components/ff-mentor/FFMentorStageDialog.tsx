@@ -180,7 +180,11 @@ export function FFMentorStageSelect({
           style={{ border: BORDER }}
           aria-label="Application stage"
         >
-          <SelectValue placeholder="Not set" />
+          <SelectValue placeholder="Not set">
+            {/* A legacy saved value (Matched/Active) isn't an option, so
+                show it as recorded. */}
+            {savedStage ?? undefined}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {FF_MENTOR_SELECTABLE_STAGES.map((s) => (

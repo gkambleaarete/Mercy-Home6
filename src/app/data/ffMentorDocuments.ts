@@ -26,7 +26,7 @@ export type FFDocumentType =
   | "autoInsurance"
   | "virtus"
   | "dcfs"
-  | "fingerprint"
+  | "accurateBiometrics"
   | "cpi";
 
 export interface FFDocumentDefinition {
@@ -69,11 +69,15 @@ export const FF_DOCUMENT_DEFINITIONS: FFDocumentDefinition[] = [
     source: { from: "certificates", key: "dcfs" },
   },
   {
-    type: "fingerprint",
-    name: "Fingerprint Receipt",
+    // An uploaded form with its own file identity and review. Input contract:
+    // the applicant-side upload is saved at uploads.accurateBiometrics. The
+    // earlier Fingerprint Receipt (certificates.fingerprint) and the retired
+    // Accurate Biometrics agreement signature never count as this upload.
+    type: "accurateBiometrics",
+    name: "Accurate Biometrics Form",
     category: "Background Check",
     programs: ["community", "school"],
-    source: { from: "certificates", key: "fingerprint" },
+    source: { from: "uploads", key: "accurateBiometrics" },
   },
   {
     type: "cpi",

@@ -55,7 +55,6 @@ import { FFMentorStageSelect } from "./FFMentorStageDialog";
 import { FFMentorReferences } from "./FFMentorReferences";
 import { FFMentorAgreements } from "./FFMentorAgreements";
 import { FFMentorChecklist } from "./FFMentorChecklist";
-import { FFMentorMatchActivity } from "./FFMentorMatchActivity";
 import { FFMentorInactiveToggle } from "./FFMentorInactiveToggle";
 import {
   APPROVAL_VARIANT,
@@ -69,6 +68,7 @@ import {
   FF_MENTOR_PIPELINE_STAGES,
   FF_MENTOR_REJECTED_STAGE,
   FF_SUB_PROGRAM_NAME,
+  ffAccountCreatedDate,
   type FFMentorApplication,
   type FFMentorApplicationStaff,
 } from "../../data/ffMentorApplication";
@@ -81,7 +81,6 @@ import {
   saveFFMentorCoordinatorDetails,
 } from "../../data/ffMentorApplicationStore";
 import { SUB_PROGRAMME_BADGE_VARIANT } from "../../data/mockFriendsFirstData";
-import { LEGACY_MENTOR_START_DATE } from "../../data/ffLegacyMentorApplications";
 
 const BORDER = "1px solid var(--slds-g-color-border-base-1)";
 const EMPTY = "Not provided";
@@ -104,7 +103,6 @@ const SECTION_TABS = [
   { id: "references", label: "References" },
   { id: "consents-documents", label: "Consents & Documents" },
   { id: "checklist", label: "Checklist" },
-  { id: "match-activity", label: "Match & Activity" },
 ] as const;
 type SectionId = (typeof SECTION_TABS)[number]["id"];
 
@@ -399,30 +397,22 @@ export function FFMentorApplicationRecord({
           </div>
           <Stepper
             variant="chevron"
-            // Same colouring as the Tutor Pipeline: stages before the saved
-            // stage completed, the saved stage current, later ones upcoming.
-            steps={[
-              ...FF_MENTOR_PIPELINE_STAGES.map(
-                (stage, idx) => ({
-                  label: stage,
-                  status:
-                    stageIdx < 0 || idx > stageIdx
-                      ? "upcoming"
-                      : idx === stageIdx
-                        ? "current"
-                        : "completed",
-                }),
-              ),
-              // Shown only when it is the saved outcome.
-              ...(rejected
-                ? [
-                    {
-                      label: FF_MENTOR_REJECTED_STAGE,
-                      status: "current" as const,
-                    },
-                  ]
-                : []),
-            ]}
+            // Exactly the eight pipeline stages. Rejected (7) and Ready for
+            // Match (8) are alternative outcomes: neither counts as a
+            // completed prerequisite of the other. A saved value outside the
+            // eight (Matched / Active) leaves every step upcoming.
+            steps={FF_MENTOR_PIPELINE_STAGES.map((stage, idx) => ({
+              label: stage,
+              status:
+                stageIdx < 0
+                  ? "upcoming"
+                  : idx === stageIdx
+                    ? "current"
+                    : idx < stageIdx &&
+                        stage !== FF_MENTOR_REJECTED_STAGE
+                      ? "completed"
+                      : "upcoming",
+            }))}
           />
         </div>
       </div>
@@ -551,17 +541,14 @@ export function FFMentorApplicationRecord({
                         label="Application Submission Date"
                         value={app.submittedAt || EMPTY}
                       />
-                      {/* Only seeded mentors carry a recorded start date. */}
-                      {LEGACY_MENTOR_START_DATE[app.applicationId] && (
-                        <Field
-                          label="Mentor Start Date"
-                          value={
-                            LEGACY_MENTOR_START_DATE[
-                              app.applicationId
-                            ]
-                          }
-                        />
-                      )}
+                      {/* Only a recorded account creation date; never the
+                          mentor start, submission or constituent dates. */}
+                      <Field
+                        label="Account Created Date"
+                        value={
+                          ffAccountCreatedDate(app) || EMPTY
+                        }
+                      />
                       <Field
                         label="Application Stage"
                         value={stageLabel}
@@ -770,10 +757,6 @@ export function FFMentorApplicationRecord({
                 <MentorProfileSection app={app} first />
               ) : activeSection === "interview-summary" ? (
                 <InterviewSummaryPanel app={app} />
-              ) : activeSection === "match-activity" ? (
-                <FFMentorMatchActivity
-                  mentorId={ffMentorIdOf(app)}
-                />
               ) : activeSection === "checklist" ? (
                 <FFMentorChecklist
                   app={app}

@@ -30,7 +30,10 @@ import {
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
-import { RiskFactorsSection } from "./RiskFactorsSection";
+import {
+  RiskFactorsSection,
+  type RiskFactorOwner,
+} from "./RiskFactorsSection";
 import { BiologicalHistorySection } from "./BiologicalHistorySection";
 import { SocialHistorySection } from "./SocialHistorySection";
 import { FamilyHistorySection } from "./FamilyHistorySection";
@@ -58,12 +61,21 @@ interface ClinicalAssessmentsViewProps {
     mainSection: MainSection,
     subSection?: string,
   ) => void;
+  /** Identity of the Admissions record shown (Risk Factors are saved per
+   *  record). Without it the Risk Factors screen reads and writes nothing. */
+  riskFactorOwner?: RiskFactorOwner;
+  /** Opens the existing assessment dialog on C-SSRS Full-Lifetime. */
+  onCompleteFullLifetime?: () => void;
+  fullLifetimeUnavailableReason?: string | null;
 }
 
 export function ClinicalAssessmentsView({
   initialMainSection = "health-medical",
   initialSubSection = "biological",
   onSectionChange,
+  riskFactorOwner,
+  onCompleteFullLifetime,
+  fullLifetimeUnavailableReason,
 }: ClinicalAssessmentsViewProps = {}) {
   const [activeMainSection, setActiveMainSection] =
     useState<MainSection>(initialMainSection);
@@ -761,7 +773,13 @@ export function ClinicalAssessmentsView({
           </div>
           <div className="p-3 sm:p-6">
             {activeRiskSubSection === "risk" && (
-              <RiskFactorsSection />
+              <RiskFactorsSection
+                owner={riskFactorOwner}
+                onCompleteFullLifetime={onCompleteFullLifetime}
+                fullLifetimeUnavailableReason={
+                  fullLifetimeUnavailableReason
+                }
+              />
             )}
             {activeRiskSubSection === "legal" && (
               <div>

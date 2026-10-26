@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  ACTUAL_ATTEMPT_PROMPTS,
+  ACTUAL_ATTEMPT_QUESTIONS,
   ACTUAL_LETHALITY_OPTIONS,
   BEHAVIOR_QUESTIONS,
   POTENTIAL_LETHALITY_OPTIONS,
@@ -53,8 +53,8 @@ beforeEach(() => __resetCssrsForTest());
 describe("Section 3 content", () => {
   it("lists the five categories; prompts are guidance, not response fields", () => {
     expect(BEHAVIOR_QUESTIONS.map((q) => q.key)).toEqual([...BEHAVIOR_KEYS]);
-    expect(ACTUAL_ATTEMPT_PROMPTS).toHaveLength(9);
-    expect(ACTUAL_ATTEMPT_PROMPTS[0]).toBe("Have you made a suicide attempt?");
+    expect(ACTUAL_ATTEMPT_QUESTIONS).toHaveLength(9);
+    expect(ACTUAL_ATTEMPT_QUESTIONS[0].text).toBe("Have you made a suicide attempt?");
     const r = emptyFullLifetimeResponses();
     expect(Object.keys(r.behavior.actualAttempt).sort()).toEqual(
       ["lifetime", "lifetimeCount", "lifetimeDescription", "past3Months", "past3MonthsCount", "past3MonthsDescription"].sort(),
@@ -144,7 +144,8 @@ describe("count validation", () => {
   });
   it("requires an explicit answer for every category and both periods", () => {
     const keys = Object.keys(validateBehaviorAttempts(emptyFullLifetimeResponses()));
-    expect(keys).toHaveLength(10);
+    // 5 categories × 2 periods, plus Actual Attempt questions 2–9 × 2 periods.
+    expect(keys).toHaveLength(26);
     expect(keys).toContain(behaviorErrorKey("nonSuicidalSelfInjury", "past3Months"));
   });
   it("descriptions stay optional", () => {

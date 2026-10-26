@@ -62,6 +62,7 @@ import {
 import {
   FF_APPLICANT_STATUS_LABEL,
   FF_SUB_PROGRAM_NAME,
+  ffAccountCreatedDate,
 } from "../../data/ffMentorApplication";
 import type { FFApplicantFacingStatus } from "../../data/ffMentorApplication";
 import { exportToCSV } from "../../lib/exportCsv";
@@ -222,10 +223,8 @@ export function FriendsFirstMentorSearch() {
               ]
             : "",
           pipelineStage: staff.stage ?? "",
-          // Account creation is captured on the applicant side; no such
-          // value reaches the staff record yet, and application start is
-          // not a substitute.
-          accountCreatedDate: "",
+          // Only a recorded account creation date; never another date.
+          accountCreatedDate: ffAccountCreatedDate(submitted),
           // No mentoring start date is recorded for applicants; the
           // application submission date is not a substitute.
           startDate: "",
@@ -286,7 +285,9 @@ export function FriendsFirstMentorSearch() {
           subProgrammes: subs,
           status: STATUS_LABEL[m.status],
           pipelineStage: resolved.stage,
-          accountCreatedDate: "",
+          accountCreatedDate: ffAccountCreatedDate(
+            resolved.application,
+          ),
           startDate: m.startDate,
           coordinator: resolved.coordinator,
           location: [o ? o.city : d.city, o ? o.state : d.state]

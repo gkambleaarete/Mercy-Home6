@@ -175,12 +175,12 @@ describe("eligibility", () => {
   });
   it("missing or unverified agreements block readiness", () => {
     const fx = completeApplication("G", ["work"]);
-    delete fx.app.answers.consent.agreements.codeOfEthics;
+    delete fx.app.answers.consent.agreements.mentorRights;
     expect(item(run(fx), "agreementsSigned").result).toBe(
       "Pending",
     );
     const bad = completeApplication("G2", ["work"]);
-    bad.app.answers.consent.agreements.codeOfEthics =
+    bad.app.answers.consent.agreements.mentorRights =
       "not a date";
     expect(item(run(bad), "agreementsSigned").reason).toContain(
       "can't be verified",

@@ -93,10 +93,11 @@ describe("Mentor Search reflects the saved shared values", () => {
       changeFFMentorStage("FF-CB-101", { stage: "Interview", expectedStage: "Active", actor, now }).ok,
     ).toBe(true);
     expect(resolveLegacyMentorForDirectory(angela())).toMatchObject({ stage: "Interview", inDirectory: false });
+    // Matched/Active are legacy values: still readable, no longer selectable.
     expect(
-      changeFFMentorStage("FF-CB-101", { stage: "Matched", expectedStage: "Interview", actor, now }).ok,
-    ).toBe(true);
-    expect(resolveLegacyMentorForDirectory(angela())).toMatchObject({ stage: "Matched", inDirectory: true });
+      changeFFMentorStage("FF-CB-101", { stage: "Matched", expectedStage: "Interview", actor, now }),
+    ).toEqual({ ok: false, reason: "invalid" });
+    expect(resolveLegacyMentorForDirectory(angela())).toMatchObject({ stage: "Interview", inDirectory: false });
   });
 
   it("an unrelated mentor is unchanged by another mentor's saved values", () => {
