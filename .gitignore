@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+
+# generated build output and caches
+dist/
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+
+# operating-system / editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# environment files and credentials (keep safe templates)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+id_rsa*
+.npmrc
+
+# local backup / duplicate archive of the source tree
+*.bak
+src.zip
